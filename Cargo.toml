@@ -1,0 +1,26 @@
+[package]
+name = "rust-authen-service"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+actix-web = "4.11.0"
+argon2 = { version = "0.5.3", features = ["std"] }
+chrono = { version = "0.4.41", features = ["serde"] }
+config = "0.15.13"
+derive = "1.0.0"
+derive_more = "2.0.1"
+diesel = { version = "2.2.12", features = ["chrono", "postgres", "r2d2", "uuid"] }
+diesel_derives = { version = "2.2.7", features = ["chrono", "postgres", "r2d2"] }
+diesel_migrations = { version = "2.2.0", features = ["postgres"] }
+dotenvy = "0.15.7"
+futures = "0.3.31"
+jsonwebtoken = "9.3.1"
+postgres = "0.19.10"
+r2d2 = "0.8.10"
+serde = { version = "1.0.219", features = ["derive", "serde_derive"] }
+serde_derive = "1.0.219"
+serde_json = "1.0.140"
+thiserror = "2.0.12"
+uuid = { version = "1.17.0", features = ["serde", "v4"] }
+validator = { version = "0.20.0", features = ["derive"] }
