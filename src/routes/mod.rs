@@ -11,10 +11,14 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
   cfg.service(
     web::scope("/api")
       .configure(auth::AuthRoutes::configure)
-      .configure(user::UserRoutes::configure)
-      .configure(role::RoleRoutes::configure)
-      .configure(permission::PermissionRoutes::configure)
-      .configure(user_role::UserRoleRoutes::configure)
-      .configure(role_permission::RolePermissionRoutes::configure)
+      .service(
+        web::scope("")
+          .wrap(crate::middlewares::jwt::JwtMiddleware)
+          .configure(user::UserRoutes::configure)
+          .configure(role::RoleRoutes::configure)
+          .configure(permission::PermissionRoutes::configure)
+          .configure(user_role::UserRoleRoutes::configure)
+          .configure(role_permission::RolePermissionRoutes::configure)
+      )
   );
 }

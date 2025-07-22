@@ -25,7 +25,7 @@ pub struct Server {
 pub struct Auth { 
   pub jwt_secret: String,
   #[serde(default = "default_expiration_seconds")]
-  pub expiration_seconds: u64,
+  pub expiration_seconds: i64,
 }
 
 fn default_server_host() -> String {
@@ -36,7 +36,7 @@ fn default_server_port() -> u16 {
   8000
 }
 
-fn default_expiration_seconds() -> u64 {
+fn default_expiration_seconds() -> i64 {
   3600
 }
 
