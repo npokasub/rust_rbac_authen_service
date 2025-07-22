@@ -1,3 +1,5 @@
+use std::io::Stderr;
+
 use serde::Deserialize;
 use config::{Config as RawConfig, ConfigError, Environment};
 

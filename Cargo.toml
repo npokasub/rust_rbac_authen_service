@@ -14,8 +14,10 @@ diesel = { version = "2.2.12", features = ["chrono", "postgres", "r2d2", "uuid"]
 diesel_derives = { version = "2.2.7", features = ["chrono", "postgres", "r2d2"] }
 diesel_migrations = { version = "2.2.0", features = ["postgres"] }
 dotenvy = "0.15.7"
+env_logger = "0.11.8"
 futures = "0.3.31"
 jsonwebtoken = "9.3.1"
+log = { version = "0.4.27", features = ["serde", "std"] }
 postgres = "0.19.10"
 r2d2 = "0.8.10"
 serde = { version = "1.0.219", features = ["derive", "serde_derive"] }

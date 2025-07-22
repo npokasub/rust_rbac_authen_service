@@ -14,13 +14,15 @@ use database::DatabasePool;
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
+  dotenvy::dotenv().ok();
+  env_logger::init();
   let config = Config::load().unwrap();  // ✅ Config loads successfully
   let pool = DatabasePool::new(&config.database.url);
 
   println!("Server starting at {}:{}", config.server.host, config.server.port);
-  println!("Connecting to database: {}", config.database.url);
-  println!("JWT Secret: {}", config.auth.jwt_secret);
-  println!("JWT expiration: {}", config.auth.expiration_seconds);
+  // println!("Connecting to database: {}", config.database.url);
+  // println!("JWT Secret: {}", config.auth.jwt_secret);
+  // println!("JWT expiration: {}", config.auth.expiration_seconds);
 
   // Clone config for use in the closure
   let config_for_app = config.clone();
