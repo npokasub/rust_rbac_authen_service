@@ -23,6 +23,15 @@ pub struct NewUser<'a> {
   pub password_hash: &'a str,
 }
 
+#[derive(AsChangeset, Debug)]
+#[diesel(table_name = users)]
+pub struct UpdateUser<'a> {
+  pub username: Option<&'a str>,
+  pub email: Option<&'a str>,
+  pub password_hash: Option<&'a str>,
+  pub updated_at: DateTime<Utc>,
+}
+
 #[derive(Serialize)]
 pub struct UserResponse {
   pub id: Uuid,

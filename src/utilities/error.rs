@@ -8,6 +8,7 @@ use uuid::Error as UuidError;
 use chrono::ParseError;
 use validator::ValidationErrors;
 use std::error::Error;
+use log::error;
 
 #[derive(Debug, Display)]
 pub enum AppError {
@@ -19,8 +20,8 @@ pub enum AppError {
   InvalidCredentials,
   #[display("Forbidden")]
   Forbidden,
-  #[display("Not Found")]
-  NotFound,
+  #[display("Not Found: {}", _0)]
+  NotFound(String),
   #[display("Conflict: {}", _0)]
   Conflict(String),
   #[display("Internal Server Error")]
@@ -34,7 +35,7 @@ impl Error for AppError {
       AppError::Unauthorized(_) => None,
       AppError::InvalidCredentials => None,
       AppError::Forbidden => None,
-      AppError::NotFound => None,
+      AppError::NotFound(_) => None,
       AppError::Conflict(_) => None,
       AppError::InternalError => None,
     }
@@ -48,15 +49,17 @@ impl ResponseError for AppError {
       AppError::Unauthorized(_) => StatusCode::UNAUTHORIZED,
       AppError::InvalidCredentials => StatusCode::UNAUTHORIZED,
       AppError::Forbidden => StatusCode::FORBIDDEN,
-      AppError::NotFound => StatusCode::NOT_FOUND,
+      AppError::NotFound(_) => StatusCode::NOT_FOUND,
       AppError::Conflict(_) => StatusCode::CONFLICT,
       AppError::InternalError => StatusCode::INTERNAL_SERVER_ERROR,
     }
   }
 
   fn error_response(&self) -> HttpResponse {
+    let error_message = self.to_string();
+    error!("Returning error response: {}", error_message);
     HttpResponse::build(self.status_code()).json(serde_json::json!({
-      "error": self.to_string()
+      "error": error_message
     }))
   }
 }
@@ -64,7 +67,7 @@ impl ResponseError for AppError {
 impl From<DieselError> for AppError {
   fn from(err: DieselError) -> Self {
     match err {
-      DieselError::NotFound => AppError::NotFound,
+      DieselError::NotFound => AppError::NotFound("Resource not found".to_string()),
       DieselError::DatabaseError(DatabaseErrorKind::UniqueViolation, _) => {
         AppError::Conflict("Duplicate entry".to_string())
       }
