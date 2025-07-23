@@ -1,10 +1,10 @@
 use diesel::prelude::*;
 use uuid::Uuid;
-use chrono::Utc;
 use crate::schema::permissions;
-use crate::models::permission::{Permission, NewPermission};
+use crate::models::permission::{Permission, NewPermission, UpdatePermission};
 use crate::database::PgPool;
 use crate::utilities::error::AppError;
+use log::{debug, error, info};
 
 pub struct PermissionRepository<'a> {
   conn: &'a PgPool,
@@ -12,46 +12,106 @@ pub struct PermissionRepository<'a> {
 
 impl<'a> PermissionRepository<'a> {
   pub fn new(conn: &'a PgPool) -> Self {
-    PermissionRepository { conn }
+    debug!("Creating PermissionRepository");
+    Self { conn }
   }
 
   pub fn create(&self, new_permission: NewPermission) -> Result<Permission, AppError> {
-    let mut conn = self.conn.get()?;
-    diesel::insert_into(permissions::table)
-      .values(&new_permission)
-      .get_result(&mut conn)
-      .map_err(AppError::from)
+    info!("Creating permission in repository: {}", new_permission.name);
+    let mut conn = self.conn.get().map_err(|e| {
+      error!("Failed to get database connection: {}", e);
+      AppError::InternalError
+    })?;
+    debug!("Inserting permission into database: {}", new_permission.name);
+    let permission: Permission = conn.transaction(|conn| {
+      diesel::insert_into(permissions::table)
+        .values(&new_permission)
+        .get_result(conn)
+        .map_err(|e| {
+          error!("Failed to create permission {}: {}", new_permission.name, e);
+          AppError::InternalError
+        })
+    })?;
+    info!("Permission created successfully in repository: {}", permission.name);
+    Ok(permission)
   }
 
   pub fn find_by_id(&self, id: Uuid) -> Result<Permission, AppError> {
-    let mut conn = self.conn.get()?;
-    permissions::table.find(id).first(&mut conn).map_err(AppError::from)
+    info!("Looking up permission by ID in repository: {}", id);
+    let mut conn = self.conn.get().map_err(|e| {
+      error!("Failed to get database connection: {}", e);
+      AppError::InternalError
+    })?;
+    debug!("Querying database for permission ID: {}", id);
+    let permission = permissions::table
+      .find(id)
+      .first(&mut conn)
+      .map_err(|e| {
+        error!("Permission with ID {} not found: {}", id, e);
+        AppError::NotFound(format!("Permission with ID {} not found", id))
+      })?;
+    info!("Found permission by ID in repository: {}", id);
+    Ok(permission)
   }
 
   pub fn find_by_name(&self, name: &str) -> Result<Permission, AppError> {
-    let mut conn = self.conn.get()?;
-    permissions::table
+    info!("Looking up permission by name in repository: {}", name);
+    let mut conn = self.conn.get().map_err(|e| {
+      error!("Failed to get database connection: {}", e);
+      AppError::InternalError
+    })?;
+    debug!("Querying database for permission: {}", name);
+    let permission = permissions::table
       .filter(permissions::name.eq(name))
       .first(&mut conn)
-      .map_err(AppError::from)
+      .map_err(|e| {
+        error!("Permission with name {} not found: {}", name, e);
+        AppError::NotFound(format!("Permission with name {} not found", name))
+      })?;
+    info!("Found permission by name in repository: {}", name);
+    Ok(permission)
   }
 
-  pub fn update(&self, id: Uuid, new_permission: NewPermission) -> Result<Permission, AppError> {
-    let mut conn = self.conn.get()?;
-    diesel::update(permissions::table.find(id))
-      .set((
-        permissions::name.eq(new_permission.name),
-        permissions::description.eq(new_permission.description),
-        permissions::updated_at.eq(Utc::now()),
-      ))
-      .get_result(&mut conn)
-      .map_err(AppError::from)
+  pub fn update(&self, id: Uuid, update_permission: UpdatePermission) -> Result<Permission, AppError> {
+    info!("Updating permission in repository: {}", id);
+    let mut conn = self.conn.get().map_err(|e| {
+      error!("Failed to get database connection: {}", e);
+      AppError::InternalError
+    })?;
+    debug!("Updating permission in database: {}", id);
+    let permission = conn.transaction(|conn| {
+      diesel::update(permissions::table.find(id))
+        .set(&update_permission)
+        .get_result(conn)
+        .map_err(|e| {
+          error!("Failed to update permission with ID {}: {}", id, e);
+          AppError::NotFound(format!("Permission with ID {} not found", id))
+        })
+    })?;
+    info!("Permission updated successfully in repository: {}", id);
+    Ok(permission)
   }
 
-  pub fn delete(&self, id: Uuid) -> Result<usize, AppError> {
-    let mut conn = self.conn.get()?;
-    diesel::delete(permissions::table.find(id))
-      .execute(&mut conn)
-      .map_err(AppError::from)
+  pub fn delete(&self, id: Uuid) -> Result<(), AppError> {
+    info!("Deleting permission in repository: {}", id);
+    let mut conn = self.conn.get().map_err(|e| {
+      error!("Failed to get database connection: {}", e);
+      AppError::InternalError
+    })?;
+    debug!("Deleting permission from database: {}", id);
+    let affected = conn.transaction(|conn| {
+      diesel::delete(permissions::table.find(id))
+        .execute(conn)
+        .map_err(|e| {
+          error!("Failed to delete permission with ID {}: {}", id, e);
+          AppError::NotFound(format!("Permission with ID {} not found", id))
+        })
+    })?;
+    if affected == 0 {
+      error!("Permission with ID {} not found for deletion", id);
+      return Err(AppError::NotFound(format!("Permission with ID {} not found", id)));
+    }
+    info!("Permission deleted successfully in repository: {}", id);
+    Ok(())
   }
 }
