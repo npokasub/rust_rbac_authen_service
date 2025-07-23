@@ -19,3 +19,20 @@ pub struct NewRolePermission {
   pub role_id: Uuid,
   pub permission_id: Uuid,
 }
+
+#[derive(Serialize)]
+pub struct RolePermissionResponse {
+  pub role_id: Uuid,
+  pub permission_id: Uuid,
+  pub created_at: DateTime<Utc>,
+}
+
+impl From<RolePermission> for RolePermissionResponse {
+  fn from(role_permission: RolePermission) -> Self {
+    RolePermissionResponse {
+      role_id: role_permission.role_id,
+      permission_id: role_permission.permission_id,
+      created_at: role_permission.created_at,
+    }
+  }
+}

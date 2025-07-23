@@ -19,3 +19,20 @@ pub struct NewUserRole {
   pub user_id: Uuid,
   pub role_id: Uuid,
 }
+
+#[derive(Serialize)]
+pub struct UserRoleResponse {
+  pub user_id: Uuid,
+  pub role_id: Uuid,
+  pub created_at: DateTime<Utc>,
+}
+
+impl From<UserRole> for UserRoleResponse {
+  fn from(user_role: UserRole) -> Self {
+    UserRoleResponse {
+      user_id: user_role.user_id,
+      role_id: user_role.role_id,
+      created_at: user_role.created_at,
+    }
+  }
+}
