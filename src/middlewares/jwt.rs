@@ -27,7 +27,7 @@ where
   type Future = Ready<Result<Self::Transform, Self::InitError>>;
 
   fn new_transform(&self, service: S) -> Self::Future {
-    debug!("Initializing JwtMiddleware");
+    // debug!("Initializing JwtMiddleware");
     future::ok(JwtMiddlewareService { service: Rc::new(service) })
   }
 }
