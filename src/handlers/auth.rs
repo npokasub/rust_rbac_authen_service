@@ -9,7 +9,6 @@ use serde::{Deserialize, Serialize};
 use chrono::{Duration, Utc};
 use log::{debug, error, info};
 
-
 #[derive(Deserialize)]
 pub struct RegisterRequest {
   pub username: String,
@@ -72,8 +71,8 @@ impl<'a> AuthHandler<'a> {
         &EncodingKey::from_secret(self.jwt_secret.as_ref()),
       )
       .map_err(|e| {
-        error!("Failed to generate JWT for user {}: {}", user.username, e);
-        AppError::InternalError
+        error!("Failed to generate JWT for user {}: {:?}", user.username, e);
+        AppError::JwtError(format!("Failed to generate JWT: {}", e))
       })?;
       info!("Login successful for user: {}", user.username);
       Ok(LoginResponse {

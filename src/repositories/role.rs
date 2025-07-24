@@ -20,7 +20,7 @@ impl<'a> RoleRepository<'a> {
     info!("Creating role in repository: {}", new_role.name);
     let mut conn = self.conn.get().map_err(|e| {
       error!("Failed to get database connection: {}", e);
-      AppError::InternalError
+      AppError::ConnectionError(format!("Failed to get database connection: {}", e))
     })?;
     debug!("Inserting role into database: {}", new_role.name);
     let role: Role = conn.transaction(|conn| {
@@ -28,8 +28,8 @@ impl<'a> RoleRepository<'a> {
         .values(&new_role)
         .get_result(conn)
         .map_err(|e| {
-          error!("Failed to create role {}: {}", new_role.name, e);
-          AppError::InternalError
+          error!("Failed to create role {}: {:?}", new_role.name, e);
+          AppError::from(e)
         })
     })?;
     info!("Role created successfully in repository: {}", role.name);
@@ -40,15 +40,15 @@ impl<'a> RoleRepository<'a> {
     info!("Looking up role by ID in repository: {}", id);
     let mut conn = self.conn.get().map_err(|e| {
       error!("Failed to get database connection: {}", e);
-      AppError::InternalError
+      AppError::ConnectionError(format!("Failed to get database connection: {}", e))
     })?;
     debug!("Querying database for role ID: {}", id);
     let role = roles::table
       .find(id)
       .first(&mut conn)
       .map_err(|e| {
-        error!("Role with ID {} not found: {}", id, e);
-        AppError::NotFound(format!("Role with ID {} not found", id))
+        error!("Failed to find role with ID {}: {:?}", id, e);
+        AppError::from(e)
       })?;
     info!("Found role by ID in repository: {}", id);
     Ok(role)
@@ -58,15 +58,15 @@ impl<'a> RoleRepository<'a> {
     info!("Looking up role by name in repository: {}", name);
     let mut conn = self.conn.get().map_err(|e| {
       error!("Failed to get database connection: {}", e);
-      AppError::InternalError
+      AppError::ConnectionError(format!("Failed to get database connection: {}", e))
     })?;
     debug!("Querying database for role: {}", name);
     let role = roles::table
       .filter(roles::name.eq(name))
       .first(&mut conn)
       .map_err(|e| {
-        error!("Role with name {} not found: {}", name, e);
-        AppError::NotFound(format!("Role with name {} not found", name))
+        error!("Failed to find role with name {}: {:?}", name, e);
+        AppError::from(e)
       })?;
     info!("Found role by name in repository: {}", name);
     Ok(role)
@@ -76,7 +76,7 @@ impl<'a> RoleRepository<'a> {
     info!("Updating role in repository: {}", id);
     let mut conn = self.conn.get().map_err(|e| {
       error!("Failed to get database connection: {}", e);
-      AppError::InternalError
+      AppError::ConnectionError(format!("Failed to get database connection: {}", e))
     })?;
     debug!("Updating role in database: {}", id);
     let role = conn.transaction(|conn| {
@@ -84,8 +84,8 @@ impl<'a> RoleRepository<'a> {
         .set(&update_role)
         .get_result(conn)
         .map_err(|e| {
-          error!("Failed to update role with ID {}: {}", id, e);
-          AppError::NotFound(format!("Role with ID {} not found", id))
+          error!("Failed to update role with ID {}: {:?}", id, e);
+          AppError::from(e)
         })
     })?;
     info!("Role updated successfully in repository: {}", id);
@@ -96,15 +96,15 @@ impl<'a> RoleRepository<'a> {
     info!("Deleting role in repository: {}", id);
     let mut conn = self.conn.get().map_err(|e| {
       error!("Failed to get database connection: {}", e);
-      AppError::InternalError
+      AppError::ConnectionError(format!("Failed to get database connection: {}", e))
     })?;
     debug!("Deleting role from database: {}", id);
     let affected = conn.transaction(|conn| {
       diesel::delete(roles::table.find(id))
         .execute(conn)
         .map_err(|e| {
-          error!("Failed to delete role with ID {}: {}", id, e);
-          AppError::NotFound(format!("Role with ID {} not found", id))
+          error!("Failed to delete role with ID {}: {:?}", id, e);
+          AppError::from(e)
         })
     })?;
     if affected == 0 {

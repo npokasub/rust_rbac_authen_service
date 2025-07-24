@@ -20,7 +20,7 @@ impl<'a> PermissionRepository<'a> {
     info!("Creating permission in repository: {}", new_permission.name);
     let mut conn = self.conn.get().map_err(|e| {
       error!("Failed to get database connection: {}", e);
-      AppError::InternalError
+      AppError::ConnectionError(format!("Failed to get database connection: {}", e))
     })?;
     debug!("Inserting permission into database: {}", new_permission.name);
     let permission: Permission = conn.transaction(|conn| {
@@ -28,8 +28,8 @@ impl<'a> PermissionRepository<'a> {
         .values(&new_permission)
         .get_result(conn)
         .map_err(|e| {
-          error!("Failed to create permission {}: {}", new_permission.name, e);
-          AppError::InternalError
+          error!("Failed to create permission {}: {:?}", new_permission.name, e);
+          AppError::from(e)
         })
     })?;
     info!("Permission created successfully in repository: {}", permission.name);
@@ -40,15 +40,15 @@ impl<'a> PermissionRepository<'a> {
     info!("Looking up permission by ID in repository: {}", id);
     let mut conn = self.conn.get().map_err(|e| {
       error!("Failed to get database connection: {}", e);
-      AppError::InternalError
+      AppError::ConnectionError(format!("Failed to get database connection: {}", e))
     })?;
     debug!("Querying database for permission ID: {}", id);
     let permission = permissions::table
       .find(id)
       .first(&mut conn)
       .map_err(|e| {
-        error!("Permission with ID {} not found: {}", id, e);
-        AppError::NotFound(format!("Permission with ID {} not found", id))
+        error!("Failed to find permission with ID {}: {:?}", id, e);
+        AppError::from(e)
       })?;
     info!("Found permission by ID in repository: {}", id);
     Ok(permission)
@@ -58,15 +58,15 @@ impl<'a> PermissionRepository<'a> {
     info!("Looking up permission by name in repository: {}", name);
     let mut conn = self.conn.get().map_err(|e| {
       error!("Failed to get database connection: {}", e);
-      AppError::InternalError
+      AppError::ConnectionError(format!("Failed to get database connection: {}", e))
     })?;
     debug!("Querying database for permission: {}", name);
     let permission = permissions::table
       .filter(permissions::name.eq(name))
       .first(&mut conn)
       .map_err(|e| {
-        error!("Permission with name {} not found: {}", name, e);
-        AppError::NotFound(format!("Permission with name {} not found", name))
+        error!("Failed to find permission with name {}: {:?}", name, e);
+        AppError::from(e)
       })?;
     info!("Found permission by name in repository: {}", name);
     Ok(permission)
@@ -76,7 +76,7 @@ impl<'a> PermissionRepository<'a> {
     info!("Updating permission in repository: {}", id);
     let mut conn = self.conn.get().map_err(|e| {
       error!("Failed to get database connection: {}", e);
-      AppError::InternalError
+      AppError::ConnectionError(format!("Failed to get database connection: {}", e))
     })?;
     debug!("Updating permission in database: {}", id);
     let permission = conn.transaction(|conn| {
@@ -84,8 +84,8 @@ impl<'a> PermissionRepository<'a> {
         .set(&update_permission)
         .get_result(conn)
         .map_err(|e| {
-          error!("Failed to update permission with ID {}: {}", id, e);
-          AppError::NotFound(format!("Permission with ID {} not found", id))
+          error!("Failed to update permission with ID {}: {:?}", id, e);
+          AppError::from(e)
         })
     })?;
     info!("Permission updated successfully in repository: {}", id);
@@ -96,15 +96,15 @@ impl<'a> PermissionRepository<'a> {
     info!("Deleting permission in repository: {}", id);
     let mut conn = self.conn.get().map_err(|e| {
       error!("Failed to get database connection: {}", e);
-      AppError::InternalError
+      AppError::ConnectionError(format!("Failed to get database connection: {}", e))
     })?;
     debug!("Deleting permission from database: {}", id);
     let affected = conn.transaction(|conn| {
       diesel::delete(permissions::table.find(id))
         .execute(conn)
         .map_err(|e| {
-          error!("Failed to delete permission with ID {}: {}", id, e);
-          AppError::NotFound(format!("Permission with ID {} not found", id))
+          error!("Failed to delete permission with ID {}: {:?}", id, e);
+          AppError::from(e)
         })
     })?;
     if affected == 0 {

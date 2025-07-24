@@ -20,7 +20,7 @@ impl<'a> RolePermissionRepository<'a> {
     info!("Creating role_permission in repository: role_id={}, permission_id={}", role_id, permission_id);
     let mut conn = self.conn.get().map_err(|e| {
       error!("Failed to get database connection: {}", e);
-      AppError::InternalError
+      AppError::ConnectionError(format!("Failed to get database connection: {}", e))
     })?;
     let new_role_permission = NewRolePermission {
       role_id,
@@ -29,12 +29,12 @@ impl<'a> RolePermissionRepository<'a> {
     debug!("Inserting role_permission into database: role_id={}, permission_id={}", role_id, permission_id);
     let role_permission: RolePermission = conn.transaction(|conn| {
       diesel::insert_into(role_permissions::table)
-          .values(&new_role_permission)
-          .get_result(conn)
-          .map_err(|e| {
-            error!("Failed to create role_permission for role_id={} and permission_id={}: {}", role_id, permission_id, e);
-            AppError::InternalError
-          })
+        .values(&new_role_permission)
+        .get_result(conn)
+        .map_err(|e| {
+          error!("Failed to create role_permission for role_id={} and permission_id={}: {:?}", role_id, permission_id, e);
+          AppError::from(e)
+        })
     })?;
     info!("RolePermission created successfully in repository: role_id={}, permission_id={}", role_id, permission_id);
     Ok(role_permission)
@@ -44,7 +44,7 @@ impl<'a> RolePermissionRepository<'a> {
     info!("Looking up role_permission by role_id={} and permission_id={}", role_id, permission_id);
     let mut conn = self.conn.get().map_err(|e| {
       error!("Failed to get database connection: {}", e);
-      AppError::InternalError
+      AppError::ConnectionError(format!("Failed to get database connection: {}", e))
     })?;
     debug!("Querying database for role_permission: role_id={}, permission_id={}", role_id, permission_id);
     let role_permission = role_permissions::table
@@ -52,8 +52,8 @@ impl<'a> RolePermissionRepository<'a> {
       .filter(role_permissions::permission_id.eq(permission_id))
       .first(&mut conn)
       .map_err(|e| {
-        error!("RolePermission with role_id={} and permission_id={} not found: {}", role_id, permission_id, e);
-        AppError::NotFound(format!("RolePermission with role_id={} and permission_id={} not found", role_id, permission_id))
+        error!("Failed to find role_permission with role_id={} and permission_id={}: {:?}", role_id, permission_id, e);
+        AppError::from(e)
       })?;
     info!("Found role_permission: role_id={}, permission_id={}", role_id, permission_id);
     Ok(role_permission)
@@ -63,15 +63,15 @@ impl<'a> RolePermissionRepository<'a> {
     info!("Looking up role_permissions by role_id={}", role_id);
     let mut conn = self.conn.get().map_err(|e| {
       error!("Failed to get database connection: {}", e);
-      AppError::InternalError
+      AppError::ConnectionError(format!("Failed to get database connection: {}", e))
     })?;
     debug!("Querying database for role_permissions with role_id={}", role_id);
     let role_permissions = role_permissions::table
       .filter(role_permissions::role_id.eq(role_id))
       .load::<RolePermission>(&mut conn)
       .map_err(|e| {
-        error!("Failed to retrieve role_permissions for role_id={}: {}", role_id, e);
-        AppError::InternalError
+        error!("Failed to retrieve role_permissions for role_id={}: {:?}", role_id, e);
+        AppError::from(e)
       })?;
     info!("Found {} role_permissions for role_id={}", role_permissions.len(), role_id);
     Ok(role_permissions)
@@ -81,7 +81,7 @@ impl<'a> RolePermissionRepository<'a> {
     info!("Deleting role_permission in repository: role_id={}, permission_id={}", role_id, permission_id);
     let mut conn = self.conn.get().map_err(|e| {
       error!("Failed to get database connection: {}", e);
-      AppError::InternalError
+      AppError::ConnectionError(format!("Failed to get database connection: {}", e))
     })?;
     debug!("Deleting role_permission from database: role_id={}, permission_id={}", role_id, permission_id);
     let affected = conn.transaction(|conn| {
@@ -92,8 +92,8 @@ impl<'a> RolePermissionRepository<'a> {
       )
       .execute(conn)
       .map_err(|e| {
-        error!("Failed to delete role_permission with role_id={} and permission_id={}: {}", role_id, permission_id, e);
-        AppError::NotFound(format!("RolePermission with role_id={} and permission_id={} not found", role_id, permission_id))
+        error!("Failed to delete role_permission with role_id={} and permission_id={}: {:?}", role_id, permission_id, e);
+        AppError::from(e)
       })
     })?;
     if affected == 0 {

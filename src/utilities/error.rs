@@ -24,8 +24,14 @@ pub enum AppError {
   NotFound(String),
   #[display("Conflict: {}", _0)]
   Conflict(String),
-  #[display("Internal Server Error")]
-  InternalError,
+  #[display("Database Error: {}", _0)]
+  DatabaseError(String),
+  #[display("Connection Error: {}", _0)]
+  ConnectionError(String),
+  #[display("Hashing Error: {}", _0)]
+  HashingError(String),
+  #[display("JWT Error: {}", _0)]
+  JwtError(String),
 }
 
 impl Error for AppError {
@@ -37,7 +43,10 @@ impl Error for AppError {
       AppError::Forbidden => None,
       AppError::NotFound(_) => None,
       AppError::Conflict(_) => None,
-      AppError::InternalError => None,
+      AppError::DatabaseError(_) => None,
+      AppError::ConnectionError(_) => None,
+      AppError::HashingError(_) => None,
+      AppError::JwtError(_) => None,
     }
   }
 }
@@ -51,7 +60,10 @@ impl ResponseError for AppError {
       AppError::Forbidden => StatusCode::FORBIDDEN,
       AppError::NotFound(_) => StatusCode::NOT_FOUND,
       AppError::Conflict(_) => StatusCode::CONFLICT,
-      AppError::InternalError => StatusCode::INTERNAL_SERVER_ERROR,
+      AppError::DatabaseError(_) => StatusCode::INTERNAL_SERVER_ERROR,
+      AppError::ConnectionError(_) => StatusCode::SERVICE_UNAVAILABLE,
+      AppError::HashingError(_) => StatusCode::BAD_REQUEST,
+      AppError::JwtError(_) => StatusCode::INTERNAL_SERVER_ERROR,
     }
   }
 
@@ -67,53 +79,147 @@ impl ResponseError for AppError {
 impl From<DieselError> for AppError {
   fn from(err: DieselError) -> Self {
     match err {
-      DieselError::NotFound => AppError::NotFound("Resource not found".to_string()),
-      DieselError::DatabaseError(DatabaseErrorKind::UniqueViolation, _) => {
-        AppError::Conflict("Duplicate entry".to_string())
+      DieselError::NotFound => {
+        error!("Diesel error: Resource not found");
+        AppError::NotFound("Resource not found".to_string())
       }
-      _ => AppError::InternalError,
+      DieselError::DatabaseError(kind, info) => {
+        match kind {
+          DatabaseErrorKind::UniqueViolation => {
+            match info.constraint_name() {
+              Some("users_username_key") => {
+                error!("Unique violation on users_username_key: {}", info.message());
+                AppError::Conflict("User already exists".to_string())
+              }
+              Some("users_email_key") => {
+                error!("Unique violation on users_email_key: {}", info.message());
+                AppError::Conflict("User already exists".to_string())
+              }
+              Some("roles_name_key") => {
+                error!("Unique violation on roles_name_key: {}", info.message());
+                AppError::Conflict("Role already exists".to_string())
+              }
+              Some("permissions_name_key") => {
+                error!("Unique violation on permissions_name_key: {}", info.message());
+                AppError::Conflict("Permission already exists".to_string())
+              }
+              Some("user_roles_user_id_role_id_key") => {
+                error!("Unique violation on user_roles_user_id_role_id_key: {}", info.message());
+                AppError::Conflict("Duplicate entry for constraint: user_roles_user_id_role_id_key".to_string())
+              }
+              Some("role_permissions_role_id_permission_id_key") => {
+                error!("Unique violation on role_permissions_role_id_permission_id_key: {}", info.message());
+                AppError::Conflict("Duplicate entry for constraint: role_permissions_role_id_permission_id_key".to_string())
+              }
+              Some(constraint) => {
+                error!("Unique violation on constraint {}: {}", constraint, info.message());
+                AppError::Conflict(format!("Duplicate entry for constraint: {}", constraint))
+              }
+              None => {
+                error!("Unique violation with no constraint name: {}", info.message());
+                AppError::Conflict("Duplicate entry".to_string())
+              }
+            }
+          }
+          DatabaseErrorKind::ForeignKeyViolation => {
+            error!("Foreign key violation: {}", info.message());
+            AppError::BadRequest(format!("Invalid reference: {}", info.message()))
+          }
+          DatabaseErrorKind::SerializationFailure => {
+            error!("Serialization failure: {}", info.message());
+            AppError::DatabaseError(format!("Transaction conflict: {}", info.message()))
+          }
+          _ => {
+            error!("Database error of kind {:?}: {}", kind, info.message());
+            AppError::DatabaseError(format!("Database error: {}", info.message()))
+          }
+        }
+      }
+      DieselError::QueryBuilderError(err) => {
+        error!("Query builder error: {}", err);
+        AppError::BadRequest(format!("Invalid query: {}", err))
+      }
+      DieselError::DeserializationError(err) => {
+        error!("Deserialization error: {}", err);
+        AppError::BadRequest(format!("Invalid data format: {}", err))
+      }
+      DieselError::SerializationError(err) => {
+        error!("Serialization error: {}", err);
+        AppError::DatabaseError(format!("Serialization error: {}", err))
+      }
+      DieselError::RollbackErrorOnCommit { rollback_error, commit_error } => {
+        error!("Rollback error on commit: rollback={}, commit={}", rollback_error, commit_error);
+        AppError::DatabaseError(format!("Transaction failed: rollback={}, commit={}", rollback_error, commit_error))
+      }
+      DieselError::RollbackTransaction => {
+        error!("Transaction rolled back");
+        AppError::DatabaseError("Transaction rolled back".to_string())
+      }
+      DieselError::AlreadyInTransaction => {
+        error!("Already in transaction");
+        AppError::DatabaseError("Already in transaction".to_string())
+      }
+      DieselError::NotInTransaction => {
+        error!("Not in transaction");
+        AppError::DatabaseError("Not in transaction".to_string())
+      }
+      DieselError::BrokenTransactionManager => {
+        error!("Broken transaction manager");
+        AppError::DatabaseError("Transaction manager error".to_string())
+      }
+      _ => {
+        error!("Unhandled Diesel error: {:?}", err);
+        AppError::DatabaseError(format!("Unknown database error: {:?}", err))
+      }
     }
   }
 }
 
 impl From<r2d2::Error> for AppError {
-  fn from(_: r2d2::Error) -> Self {
-    AppError::InternalError
+  fn from(err: r2d2::Error) -> Self {
+    error!("Connection pool error: {}", err);
+    AppError::ConnectionError(format!("Failed to access database: {}", err))
   }
 }
 
 impl From<UuidError> for AppError {
-  fn from(_: UuidError) -> Self {
-    AppError::BadRequest("Invalid UUID".to_string())
+  fn from(err: UuidError) -> Self {
+    error!("UUID error: {}", err);
+    AppError::BadRequest(format!("Invalid UUID: {}", err))
   }
 }
 
 impl From<ParseError> for AppError {
-  fn from(_: ParseError) -> Self {
-    AppError::BadRequest("Invalid datetime format".to_string())
+  fn from(err: ParseError) -> Self {
+    error!("Parse error: {}", err);
+    AppError::BadRequest(format!("Invalid datetime format: {}", err))
   }
 }
 
 impl From<JwtError> for AppError {
   fn from(err: JwtError) -> Self {
-    AppError::Unauthorized(err.to_string())
+    error!("JWT error: {}", err);
+    AppError::JwtError(format!("Failed to process JWT: {}", err))
   }
 }
 
 impl From<ArgonError> for AppError {
-  fn from(_: ArgonError) -> Self {
-    AppError::InternalError
+  fn from(err: ArgonError) -> Self {
+    error!("Argon2 error: {}", err);
+    AppError::HashingError(format!("Password hashing error: {}", err))
   }
 }
 
 impl From<std::io::Error> for AppError {
-  fn from(_: std::io::Error) -> Self {
-    AppError::InternalError
+  fn from(err: std::io::Error) -> Self {
+    error!("IO error: {}", err);
+    AppError::BadRequest(format!("IO error: {}", err))
   }
 }
 
 impl From<ValidationErrors> for AppError {
   fn from(err: ValidationErrors) -> Self {
+    error!("Validation error: {}", err);
     AppError::BadRequest(format!("Validation error: {}", err))
   }
 }
